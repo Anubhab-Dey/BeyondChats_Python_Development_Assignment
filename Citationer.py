@@ -14,41 +14,41 @@ API_URL = os.getenv(
 
 def fetch_data_from_api(api_url):
     """
-    Fetches data from the paginated API endpoint.
+    Fetches data from the paginated API.
 
-    Args:
-        api_url (str): The API URL to fetch data from.
+    Parameters:
+    api_url (str): The URL of the API endpoint.
 
     Returns:
-        list: A list of data objects retrieved from the API.
+    list: A list of data objects retrieved from the API.
     """
     data = []
     page = 1
     while True:
-        response = requests.get(api_url, params={"page": page})
-        if response.status_code != 200:
-            print(
-                f"Failed to fetch data from API. Status code: {response.status_code}"
-            )
+        try:
+            response = requests.get(api_url, params={"page": page})
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            page_data = response.json()
+            if not page_data:
+                break
+            data.extend(page_data)
+            page += 1
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch data from API. Error: {e}")
             break
-        page_data = response.json()
-        if not page_data:
-            break
-        data.extend(page_data)
-        page += 1
     return data
 
 
 def identify_sources(response, sources):
     """
-    Identifies sources for a given response text.
+    Identifies sources that contributed to the response.
 
-    Args:
-        response (str): The response text to check against sources.
-        sources (list): A list of source objects to check.
+    Parameters:
+    response (str): The response text.
+    sources (list): A list of source objects.
 
     Returns:
-        list: A list of citation objects that match the response text.
+    list: A list of citation objects containing 'id' and 'link'.
     """
     citations = []
     for source in sources:
@@ -60,13 +60,13 @@ def identify_sources(response, sources):
 
 def process_data(data):
     """
-    Processes data objects to identify citations.
+    Processes the data to identify citations for each response.
 
-    Args:
-        data (list): A list of data objects from the API.
+    Parameters:
+    data (list): A list of data objects containing responses and sources.
 
     Returns:
-        list: A list of processed data objects with citations.
+    list: A list of processed data objects with citations.
     """
     result = []
     for item in data:
@@ -77,34 +77,32 @@ def process_data(data):
     return result
 
 
-def print_results(results):
+def print_citations(citations_result):
     """
-    Prints the results in an attractive, descriptive format.
+    Prints the citations in a formatted manner.
 
-    Args:
-        results (list): A list of processed data objects with citations.
+    Parameters:
+    citations_result (list): A list of processed data objects with citations.
     """
-    for i, item in enumerate(results, start=1):
-        print(f"\n--- Response {i} ---")
+    for item in citations_result:
+        print("=" * 80)
         print(f"Response:\n{item['response']}\n")
         if item["citations"]:
             print("Citations:")
             for citation in item["citations"]:
-                link = (
-                    citation["link"]
-                    if citation["link"]
-                    else "No link available"
-                )
-                print(f"- ID: {citation['id']}, Link: {link}")
+                print(f"  - ID: {citation['id']}")
+                if citation["link"]:
+                    print(f"    Link: {citation['link']}")
         else:
             print("Citations: None")
-        print("\n" + "-" * 50)
+        print("=" * 80)
+        print()
 
 
 if __name__ == "__main__":
-    # Fetch data from the API
     data = fetch_data_from_api(API_URL)
-    # Process the data to find citations
-    citations_result = process_data(data)
-    # Print the results
-    print_results(citations_result)
+    if data:
+        citations_result = process_data(data)
+        print_citations(citations_result)
+    else:
+        print("No data was fetched from the API.")
