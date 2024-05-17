@@ -16,7 +16,8 @@ repos:
     rev: 24.4.2
     hooks:
       - id: black
-        args: ["--check", "--diff", "--line-length", "79"]
+        args: ["--check", "--diff", "--line-length", "79",
+               "--doctstring-convention"]
 
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
