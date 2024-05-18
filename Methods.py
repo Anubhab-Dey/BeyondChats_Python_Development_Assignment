@@ -1,8 +1,8 @@
 import json
 import os
-import re
 
 import requests
+import spacy
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -15,6 +15,10 @@ class TooManyRequestsError(Exception):
     """Custom exception for handling HTTP 429 Too Many Requests errors."""
 
     pass
+
+
+# Load the spaCy model
+nlp = spacy.load("en_core_web_sm")
 
 
 @retry(
@@ -71,23 +75,29 @@ def extract_citations(sources):
     return citations
 
 
-def match_sources(response, sources):
+def match_sources(response, sources, threshold=0.75):
     """
-    Matches sources with the response.
+    Matches sources with the response using lexical and contextual similarity.
 
     Parameters:
     response (str): The response text.
     sources (list): A list of source objects.
+    threshold (float): The similarity threshold for matching.
 
     Returns:
     list: A list of matched sources.
     """
     matched_sources = []
+    response_doc = nlp(response)
+
     for source in sources:
         context = source["context"]
-        # Using regular expressions to find whole words and word boundaries
-        if re.search(r"\b" + re.escape(context) + r"\b", response):
+        context_doc = nlp(context)
+        similarity = response_doc.similarity(context_doc)
+
+        if similarity >= threshold:
             matched_sources.append(source)
+
     return matched_sources
 
 
