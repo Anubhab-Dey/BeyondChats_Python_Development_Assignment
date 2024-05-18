@@ -2,6 +2,12 @@ import os
 
 import requests
 from dotenv import load_dotenv
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -12,9 +18,46 @@ API_URL = os.getenv(
 )
 
 
+class TooManyRequestsError(Exception):
+    """Custom exception for handling HTTP 429 Too Many Requests errors."""
+
+    pass
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=(
+        retry_if_exception_type(requests.exceptions.RequestException)
+        | retry_if_exception_type(TooManyRequestsError)
+    ),
+)
+def fetch_page(api_url, page):
+    """
+    Fetches a single page of data from the API.
+
+    Parameters:
+    api_url (str): The URL of the API endpoint.
+    page (int): The page number to fetch.
+
+    Returns:
+    dict: The JSON response from the API.
+
+    Raises:
+    TooManyRequestsError: If the API returns a 429 status code.
+    """
+    response = requests.get(api_url, params={"page": page})
+    if response.status_code == 429:
+        raise TooManyRequestsError(
+            f"Too Many Requests: {response.status_code}"
+        )
+    response.raise_for_status()  # Raise an exception for HTTP errors
+    return response.json()
+
+
 def fetch_data_from_api(api_url):
     """
-    Fetches data from the paginated API.
+    Fetches data from the paginated API, handling pagination and rate limits.
 
     Parameters:
     api_url (str): The URL of the API endpoint.
@@ -26,16 +69,20 @@ def fetch_data_from_api(api_url):
     page = 1
     while True:
         try:
-            response = requests.get(api_url, params={"page": page})
-            response.raise_for_status()  # Raise an exception for HTTP errors
-            page_data = response.json()
+            page_data = fetch_page(api_url, page)
             if not page_data:
                 break
-            data.extend(page_data)
+            if isinstance(page_data, list):
+                data.extend(page_data)
+            else:
+                print(f"Unexpected data format on page {page}: {page_data}")
+                break
             page += 1
         except requests.exceptions.RequestException as e:
             print(f"Failed to fetch data from API. Error: {e}")
             break
+        except TooManyRequestsError as e:
+            print(f"Too many requests. Retrying... Error: {e}")
     return data
 
 
@@ -70,6 +117,9 @@ def process_data(data):
     """
     result = []
     for item in data:
+        if not isinstance(item, dict):
+            print(f"Skipping unexpected item format: {item}")
+            continue
         response = item.get("response", "")
         sources = item.get("sources", [])
         citations = identify_sources(response, sources)
