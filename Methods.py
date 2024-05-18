@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import requests
 from tenacity import (
@@ -70,6 +71,26 @@ def extract_citations(sources):
     return citations
 
 
+def match_sources(response, sources):
+    """
+    Matches sources with the response.
+
+    Parameters:
+    response (str): The response text.
+    sources (list): A list of source objects.
+
+    Returns:
+    list: A list of matched sources.
+    """
+    matched_sources = []
+    for source in sources:
+        context = source["context"]
+        # Using regular expressions to find whole words and word boundaries
+        if re.search(r"\b" + re.escape(context) + r"\b", response):
+            matched_sources.append(source)
+    return matched_sources
+
+
 def process_data(data):
     """
     Processes the data to identify citations for each response.
@@ -78,7 +99,7 @@ def process_data(data):
     data (dict): The data object containing responses and sources.
 
     Returns:
-    list: A list of processed data objects with citations.
+    list: A list of processed data objects with citations and matched sources.
     """
     result = []
     # Extract the actual data list from the nested 'data' key
@@ -91,11 +112,18 @@ def process_data(data):
         response = item.get("response", "")
         sources = item.get("source", [])
         citations = extract_citations(sources)
-        result.append({"response": response, "sources": citations})
+        matched_sources = match_sources(response, sources)
+        result.append(
+            {
+                "response": response,
+                "sources": citations,
+                "matched_sources": matched_sources,
+            }
+        )
     return result
 
 
-def save_to_json(citations_result, page, directory):
+def save_to_json(citations_result, page, directory, processed=False):
     """
     Saves the citations result to a JSON file.
 
@@ -103,12 +131,14 @@ def save_to_json(citations_result, page, directory):
     citations_result (list): A list of processed data objects with citations.
     page (int): The page number.
     directory (str): The directory to save the JSON files in.
+    processed (bool): Flag to indicate if the data is processed or raw.
     """
     # Ensure the output directory exists
     os.makedirs(directory, exist_ok=True)
 
     # Construct filename and filepath
-    filename = f"Page_{page}.json"
+    prefix = "Processed_" if processed else ""
+    filename = f"{prefix}Page_{page}.json"
     filepath = os.path.join(directory, filename)
 
     # Save the JSON data to the specified file
