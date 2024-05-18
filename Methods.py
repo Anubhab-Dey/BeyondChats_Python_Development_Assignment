@@ -2,43 +2,20 @@ import json
 import os
 
 import requests
-import spacy
+import torch
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
 class TooManyRequestsError(Exception):
     """Custom exception for handling HTTP 429 Too Many Requests errors."""
 
     pass
-
-
-def load_spacy_model(model_name="en_core_web_sm"):
-    """
-    Loads the spaCy model. Downloads the model if it's not already available.
-
-    Parameters:
-    model_name (str): The name of the spaCy model to load.
-
-    Returns:
-    spacy.lang: The loaded spaCy model.
-    """
-    try:
-        nlp = spacy.load(model_name)
-    except IOError:
-        from spacy.cli import download
-
-        download(model_name)
-        nlp = spacy.load(model_name)
-    return nlp
-
-
-# Load the spaCy model
-nlp = load_spacy_model()
 
 
 @retry(
@@ -95,27 +72,36 @@ def extract_citations(sources):
     return citations
 
 
-def calculate_similarity(response, context, threshold=0.75):
+def calculate_semantic_similarity(response, context):
     """
-    Calculates the similarity between the response and context using spaCy.
+    Calculates the semantic similarity between the response and context using transformers.
 
     Parameters:
     response (str): The response text.
     context (str): The context text.
-    threshold (float): The similarity threshold for matching.
 
     Returns:
-    bool: True if the similarity is above the threshold, False otherwise.
+    float: The similarity score between the response and context.
     """
-    response_doc = nlp(response)
-    context_doc = nlp(context)
-    similarity = response_doc.similarity(context_doc)
-    return similarity >= threshold
+    tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+    model = AutoModelForSequenceClassification.from_pretrained(
+        "distilbert-base-uncased"
+    )
+
+    inputs = tokenizer(
+        response, context, return_tensors="pt", truncation=True, padding=True
+    )
+    outputs = model(**inputs)
+    logits = outputs.logits
+    probabilities = torch.nn.functional.softmax(logits, dim=-1)
+    similarity_score = probabilities[0][1].item()
+
+    return similarity_score
 
 
 def match_sources(response, sources, threshold=0.75):
     """
-    Matches sources with the response using lexical and contextual similarity.
+    Matches sources with the response using semantic similarity.
 
     Parameters:
     response (str): The response text.
@@ -128,9 +114,8 @@ def match_sources(response, sources, threshold=0.75):
     matched_sources = []
     for source in sources:
         context = source["context"]
-        if context in response or calculate_similarity(
-            response, context, threshold
-        ):
+        similarity = calculate_semantic_similarity(response, context)
+        if similarity >= threshold:
             matched_sources.append(source)
     return matched_sources
 
