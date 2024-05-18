@@ -20,7 +20,6 @@ API_URL = os.getenv(
 )
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "JSONs")
 PROGRESS_FILE = os.path.join(OUTPUT_DIR, "progress.json")
-MAX_PAGE_LIMIT = 60
 
 
 # Define a custom exception for handling HTTP 429 Too Many Requests errors
@@ -165,11 +164,11 @@ def save_progress(progress_file, last_page):
 if __name__ == "__main__":
     last_processed_page = load_progress(PROGRESS_FILE)
     page = last_processed_page
-    while page <= MAX_PAGE_LIMIT:
+    while True:
         try:
             # Fetch data for the current page
             data = fetch_page(API_URL, page)
-            if not data or "data" not in data:
+            if not data or "data" not in data or not data["data"]["data"]:
                 # Break the loop if no data is returned or 'data' key is missing
                 break
             # Process the data to identify citations
@@ -181,11 +180,11 @@ if __name__ == "__main__":
             # Move to the next page
             page += 1
             # Sleep to avoid hitting the rate limit too quickly
-            time.sleep(2)
+            time.sleep(1)
         except TooManyRequestsError as e:
             print(f"Error: {e}")
             # Wait longer before retrying after hitting rate limit
-            time.sleep(13)
+            time.sleep(60)
 
     # Delete the progress file if all pages are processed
     if os.path.exists(PROGRESS_FILE):
