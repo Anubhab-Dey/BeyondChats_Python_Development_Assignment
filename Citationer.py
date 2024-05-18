@@ -1,3 +1,4 @@
+import json
 import os
 
 import requests
@@ -55,37 +56,6 @@ def fetch_page(api_url, page):
     return response.json()
 
 
-def fetch_data_from_api(api_url):
-    """
-    Fetches data from the paginated API, handling pagination and rate limits.
-
-    Parameters:
-    api_url (str): The URL of the API endpoint.
-
-    Returns:
-    list: A list of data objects retrieved from the API.
-    """
-    data = []
-    page = 1
-    while True:
-        try:
-            page_data = fetch_page(api_url, page)
-            if not page_data:
-                break
-            if isinstance(page_data, list):
-                data.extend(page_data)
-            else:
-                print(f"Unexpected data format on page {page}: {page_data}")
-                break
-            page += 1
-        except requests.exceptions.RequestException as e:
-            print(f"Failed to fetch data from API. Error: {e}")
-            break
-        except TooManyRequestsError as e:
-            print(f"Too many requests. Retrying... Error: {e}")
-    return data
-
-
 def identify_sources(response, sources):
     """
     Identifies sources that contributed to the response.
@@ -127,32 +97,33 @@ def process_data(data):
     return result
 
 
-def print_citations(citations_result):
+def save_to_json(citations_result, page, directory="JSONs"):
     """
-    Prints the citations in a formatted manner.
+    Saves the citations result to a JSON file.
 
     Parameters:
     citations_result (list): A list of processed data objects with citations.
+    page (int): The page number.
+    directory (str): The directory to save the JSON files in.
     """
-    for item in citations_result:
-        print("=" * 80)
-        print(f"Response:\n{item['response']}\n")
-        if item["citations"]:
-            print("Citations:")
-            for citation in item["citations"]:
-                print(f"  - ID: {citation['id']}")
-                if citation["link"]:
-                    print(f"    Link: {citation['link']}")
-        else:
-            print("Citations: None")
-        print("=" * 80)
-        print()
+    # Ensure the directory exists
+    os.makedirs(directory, exist_ok=True)
+
+    filename = f"Page_{page}.json"
+    filepath = os.path.join(directory, filename)
+    with open(filepath, "w") as f:
+        json.dump(citations_result, f, indent=4)
+    print(f"Page {page} as JSON saved as '{filename}' at '{filepath}'")
 
 
 if __name__ == "__main__":
-    data = fetch_data_from_api(API_URL)
-    if data:
+    page = 1
+    while True:
+        data = fetch_page(API_URL, page)
+        if not data:
+            break
         citations_result = process_data(data)
-        print_citations(citations_result)
-    else:
-        print("No data was fetched from the API.")
+        save_to_json(citations_result, page)
+        page += 1
+
+    print("All pages processed.")
