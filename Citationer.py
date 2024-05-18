@@ -56,7 +56,8 @@ def fetch_page(api_url, page):
             f"Too Many Requests: {response.status_code}"
         )
     response.raise_for_status()  # Raise an exception for HTTP errors
-    return response.json()
+    data = response.json()
+    return data
 
 
 def identify_sources(response, sources):
@@ -90,13 +91,14 @@ def process_data(data):
     list: A list of processed data objects with citations.
     """
     result = []
-    for item in data:
+    # Extract the actual data list from the nested 'data' key
+    for item in data["data"]:
         if not isinstance(item, dict):
             # Skip unexpected item formats
             print(f"Skipping unexpected item format: {item}")
             continue
         response = item.get("response", "")
-        sources = item.get("sources", [])
+        sources = item.get("source", [])
         citations = identify_sources(response, sources)
         result.append({"response": response, "citations": citations})
     return result
@@ -131,11 +133,11 @@ if __name__ == "__main__":
     while True:
         # Fetch data for the current page
         data = fetch_page(API_URL, page)
-        if not data:
-            # Break the loop if no data is returned
+        if not data or "data" not in data:
+            # Break the loop if no data is returned or 'data' key is missing
             break
         # Process the data to identify citations
-        citations_result = process_data(data)
+        citations_result = process_data(data["data"])
         # Save the processed data to a JSON file
         save_to_json(citations_result, page, OUTPUT_DIR)
         # Move to the next page
