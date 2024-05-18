@@ -18,6 +18,15 @@ class TooManyRequestsError(Exception):
 
 
 def load_spacy_model(model_name="en_core_web_sm"):
+    """
+    Loads the spaCy model. Downloads the model if it's not already available.
+
+    Parameters:
+    model_name (str): The name of the spaCy model to load.
+
+    Returns:
+    spacy.lang: The loaded spaCy model.
+    """
     try:
         nlp = spacy.load(model_name)
     except IOError:
