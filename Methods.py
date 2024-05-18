@@ -17,8 +17,19 @@ class TooManyRequestsError(Exception):
     pass
 
 
+def load_spacy_model(model_name="en_core_web_sm"):
+    try:
+        nlp = spacy.load(model_name)
+    except IOError:
+        from spacy.cli import download
+
+        download(model_name)
+        nlp = spacy.load(model_name)
+    return nlp
+
+
 # Load the spaCy model
-nlp = spacy.load("en_core_web_sm")
+nlp = load_spacy_model()
 
 
 @retry(
