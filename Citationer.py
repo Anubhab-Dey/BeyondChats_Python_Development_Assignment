@@ -89,14 +89,15 @@ def process_data(data):
     Processes the data to identify citations for each response.
 
     Parameters:
-    data (list): A list of data objects containing responses and sources.
+    data (dict): The data object containing responses and sources.
 
     Returns:
     list: A list of processed data objects with citations.
     """
     result = []
     # Extract the actual data list from the nested 'data' key
-    for item in data["data"]:
+    items = data.get("data", {}).get("data", [])
+    for item in items:
         if not isinstance(item, dict):
             # Skip unexpected item formats
             print(f"Skipping unexpected item format: {item}")
@@ -142,6 +143,8 @@ if __name__ == "__main__":
             break
         # Process the data to identify citations
         citations_result = process_data(data)
+        # Debug: Print citations result for the current page
+        print(f"Citations result for page {page}: {citations_result}")
         # Save the processed data to a JSON file
         save_to_json(citations_result, page, OUTPUT_DIR)
         # Move to the next page
