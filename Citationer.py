@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -18,6 +19,8 @@ API_URL = os.getenv(
     "API_URL", "https://devapi.beyondchats.com/api/get_message_with_sources"
 )
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "JSONs")
+PROGRESS_FILE = os.path.join(OUTPUT_DIR, "progress.json")
+MAX_PAGE_LIMIT = 60
 
 
 # Define a custom exception for handling HTTP 429 Too Many Requests errors
@@ -28,8 +31,8 @@ class TooManyRequestsError(Exception):
 
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
+    stop=stop_after_attempt(10),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
     retry=(
         retry_if_exception_type(requests.exceptions.RequestException)
         | retry_if_exception_type(TooManyRequestsError)
@@ -60,12 +63,11 @@ def fetch_page(api_url, page):
     return data
 
 
-def extract_citations(response, sources):
+def extract_citations(sources):
     """
-    Extracts sources that contributed to the response.
+    Extracts sources for the response.
 
     Parameters:
-    response (str): The response text.
     sources (list): A list of source objects.
 
     Returns:
@@ -73,14 +75,12 @@ def extract_citations(response, sources):
     """
     citations = []
     for source in sources:
-        if source["context"] in response:
-            # Create citation object if source context is in response
-            citation = {
-                "id": source["id"],
-                "context": source["context"],
-                "link": source.get("link", ""),
-            }
-            citations.append(citation)
+        citation = {
+            "id": source["id"],
+            "context": source["context"],
+            "link": source.get("link", ""),
+        }
+        citations.append(citation)
     return citations
 
 
@@ -104,7 +104,7 @@ def process_data(data):
             continue
         response = item.get("response", "")
         sources = item.get("source", [])
-        citations = extract_citations(response, sources)
+        citations = extract_citations(sources)
         result.append({"response": response, "sources": citations})
     return result
 
@@ -133,22 +133,64 @@ def save_to_json(citations_result, page, directory):
     print(f"Page {page} as JSON saved as '{filename}' at '{filepath}'")
 
 
+def load_progress(progress_file):
+    """
+    Loads the last processed page from the progress file.
+
+    Parameters:
+    progress_file (str): The path to the progress file.
+
+    Returns:
+    int: The last processed page number.
+    """
+    if os.path.exists(progress_file):
+        with open(progress_file, "r") as f:
+            progress = json.load(f)
+            return progress.get("last_page", 1)
+    return 1
+
+
+def save_progress(progress_file, last_page):
+    """
+    Saves the last processed page to the progress file.
+
+    Parameters:
+    progress_file (str): The path to the progress file.
+    last_page (int): The last processed page number.
+    """
+    with open(progress_file, "w") as f:
+        json.dump({"last_page": last_page}, f)
+
+
 if __name__ == "__main__":
-    page = 1
-    while True:
-        # Fetch data for the current page
-        data = fetch_page(API_URL, page)
-        if not data or "data" not in data:
-            # Break the loop if no data is returned or 'data' key is missing
-            break
-        # Process the data to identify citations
-        citations_result = process_data(data)
-        # Debug: Print citations result for the current page
-        print(f"Citations result for page {page}: {citations_result}")
-        # Save the processed data to a JSON file
-        save_to_json(citations_result, page, OUTPUT_DIR)
-        # Move to the next page
-        page += 1
+    last_processed_page = load_progress(PROGRESS_FILE)
+    page = last_processed_page
+    while page <= MAX_PAGE_LIMIT:
+        try:
+            # Fetch data for the current page
+            data = fetch_page(API_URL, page)
+            if not data or "data" not in data:
+                # Break the loop if no data is returned or 'data' key is missing
+                break
+            # Process the data to identify citations
+            citations_result = process_data(data)
+            # Save the processed data to a JSON file
+            save_to_json(citations_result, page, OUTPUT_DIR)
+            # Save the progress
+            save_progress(PROGRESS_FILE, page)
+            # Move to the next page
+            page += 1
+            # Sleep to avoid hitting the rate limit too quickly
+            time.sleep(2)
+        except TooManyRequestsError as e:
+            print(f"Error: {e}")
+            # Wait longer before retrying after hitting rate limit
+            time.sleep(13)
+
+    # Delete the progress file if all pages are processed
+    if os.path.exists(PROGRESS_FILE):
+        os.remove(PROGRESS_FILE)
+        print("Progress file deleted.")
 
     # Print completion message
     print("All pages processed.")
