@@ -60,22 +60,26 @@ def fetch_page(api_url, page):
     return data
 
 
-def identify_sources(response, sources):
+def extract_citations(response, sources):
     """
-    Identifies sources that contributed to the response.
+    Extracts sources that contributed to the response.
 
     Parameters:
     response (str): The response text.
     sources (list): A list of source objects.
 
     Returns:
-    list: A list of citation objects containing 'id' and 'link'.
+    list: A list of citation objects containing 'id', 'context', and 'link'.
     """
     citations = []
     for source in sources:
         if source["context"] in response:
             # Create citation object if source context is in response
-            citation = {"id": source["id"], "link": source.get("link", "")}
+            citation = {
+                "id": source["id"],
+                "context": source["context"],
+                "link": source.get("link", ""),
+            }
             citations.append(citation)
     return citations
 
@@ -99,8 +103,8 @@ def process_data(data):
             continue
         response = item.get("response", "")
         sources = item.get("source", [])
-        citations = identify_sources(response, sources)
-        result.append({"response": response, "citations": citations})
+        citations = extract_citations(response, sources)
+        result.append({"response": response, "sources": citations})
     return result
 
 
@@ -137,7 +141,7 @@ if __name__ == "__main__":
             # Break the loop if no data is returned or 'data' key is missing
             break
         # Process the data to identify citations
-        citations_result = process_data(data["data"])
+        citations_result = process_data(data)
         # Save the processed data to a JSON file
         save_to_json(citations_result, page, OUTPUT_DIR)
         # Move to the next page
