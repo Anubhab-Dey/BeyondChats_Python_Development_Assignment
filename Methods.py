@@ -102,8 +102,12 @@ def process_data(data):
     list: A list of processed data objects with citations and matched sources.
     """
     result = []
-    # Extract the actual data list from the nested 'data' key
-    items = data.get("data", {}).get("data", [])
+
+    if isinstance(data, list):
+        items = data
+    else:
+        items = data.get("data", {}).get("data", [])
+
     for item in items:
         if not isinstance(item, dict):
             # Skip unexpected item formats
