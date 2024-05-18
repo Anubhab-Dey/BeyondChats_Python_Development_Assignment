@@ -95,6 +95,24 @@ def extract_citations(sources):
     return citations
 
 
+def calculate_similarity(response, context, threshold=0.75):
+    """
+    Calculates the similarity between the response and context using spaCy.
+
+    Parameters:
+    response (str): The response text.
+    context (str): The context text.
+    threshold (float): The similarity threshold for matching.
+
+    Returns:
+    bool: True if the similarity is above the threshold, False otherwise.
+    """
+    response_doc = nlp(response)
+    context_doc = nlp(context)
+    similarity = response_doc.similarity(context_doc)
+    return similarity >= threshold
+
+
 def match_sources(response, sources, threshold=0.75):
     """
     Matches sources with the response using lexical and contextual similarity.
@@ -108,16 +126,12 @@ def match_sources(response, sources, threshold=0.75):
     list: A list of matched sources.
     """
     matched_sources = []
-    response_doc = nlp(response)
-
     for source in sources:
         context = source["context"]
-        context_doc = nlp(context)
-        similarity = response_doc.similarity(context_doc)
-
-        if similarity >= threshold:
+        if context in response or calculate_similarity(
+            response, context, threshold
+        ):
             matched_sources.append(source)
-
     return matched_sources
 
 
