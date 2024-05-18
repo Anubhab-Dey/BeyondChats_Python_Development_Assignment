@@ -13,12 +13,14 @@ from tenacity import (
 # Load environment variables from a .env file
 load_dotenv()
 
-# Fetch the API URL from environment variables
+# Fetch the API URL and output directory from environment variables
 API_URL = os.getenv(
     "API_URL", "https://devapi.beyondchats.com/api/get_message_with_sources"
 )
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "JSONs")
 
 
+# Define a custom exception for handling HTTP 429 Too Many Requests errors
 class TooManyRequestsError(Exception):
     """Custom exception for handling HTTP 429 Too Many Requests errors."""
 
@@ -49,6 +51,7 @@ def fetch_page(api_url, page):
     """
     response = requests.get(api_url, params={"page": page})
     if response.status_code == 429:
+        # Raise custom exception for Too Many Requests
         raise TooManyRequestsError(
             f"Too Many Requests: {response.status_code}"
         )
@@ -70,6 +73,7 @@ def identify_sources(response, sources):
     citations = []
     for source in sources:
         if source["context"] in response:
+            # Create citation object if source context is in response
             citation = {"id": source["id"], "link": source.get("link", "")}
             citations.append(citation)
     return citations
@@ -88,6 +92,7 @@ def process_data(data):
     result = []
     for item in data:
         if not isinstance(item, dict):
+            # Skip unexpected item formats
             print(f"Skipping unexpected item format: {item}")
             continue
         response = item.get("response", "")
@@ -97,7 +102,7 @@ def process_data(data):
     return result
 
 
-def save_to_json(citations_result, page, directory="JSONs"):
+def save_to_json(citations_result, page, directory):
     """
     Saves the citations result to a JSON file.
 
@@ -106,24 +111,35 @@ def save_to_json(citations_result, page, directory="JSONs"):
     page (int): The page number.
     directory (str): The directory to save the JSON files in.
     """
-    # Ensure the directory exists
+    # Ensure the output directory exists
     os.makedirs(directory, exist_ok=True)
 
+    # Construct filename and filepath
     filename = f"Page_{page}.json"
     filepath = os.path.join(directory, filename)
+
+    # Save the JSON data to the specified file
     with open(filepath, "w") as f:
         json.dump(citations_result, f, indent=4)
+
+    # Print confirmation message
     print(f"Page {page} as JSON saved as '{filename}' at '{filepath}'")
 
 
 if __name__ == "__main__":
     page = 1
     while True:
+        # Fetch data for the current page
         data = fetch_page(API_URL, page)
         if not data:
+            # Break the loop if no data is returned
             break
+        # Process the data to identify citations
         citations_result = process_data(data)
-        save_to_json(citations_result, page)
+        # Save the processed data to a JSON file
+        save_to_json(citations_result, page, OUTPUT_DIR)
+        # Move to the next page
         page += 1
 
+    # Print completion message
     print("All pages processed.")
