@@ -1,3 +1,4 @@
+import json
 import os
 
 from dotenv import load_dotenv
@@ -13,10 +14,10 @@ from Methods import (
 # Load environment variables from a .env file
 load_dotenv()
 
-# Fetch the API URL from environment variables
+# Fetch the API URL and output directory from environment variables
 API_URL = os.getenv("API_URL")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "JSONs")
-PROGRESS_FILE = "progress.json"
+PROGRESS_FILE = os.path.join(OUTPUT_DIR, "progress.json")
 
 if __name__ == "__main__":
     # Load the last page from progress or start from 1
@@ -37,3 +38,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"An error occurred: {e}")
             break
+
+    # Delete the progress file if no more pages are left
+    if last_page > 13:
+        if os.path.exists(PROGRESS_FILE):
+            os.remove(PROGRESS_FILE)
+            print(f"Deleted progress file: {PROGRESS_FILE}")
