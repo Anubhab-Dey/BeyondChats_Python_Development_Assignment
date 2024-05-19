@@ -170,7 +170,7 @@ def match_sources(response, sources, tokenizer, model, threshold=0.75):
     return matched_sources
 
 
-def process_data(data, tokenizer, model):
+def process_data(data, tokenizer, model, threshold=0.75):
     """
     Processes the data to identify citations for each response.
 
@@ -178,25 +178,39 @@ def process_data(data, tokenizer, model):
     data (list): The "data" array containing the response-sources pairs.
     tokenizer (transformers.AutoTokenizer): The tokenizer for the transformers model.
     model (transformers.AutoModelForSequenceClassification): The transformers model.
+    threshold (float): The similarity threshold for matching.
 
     Returns:
-    list: A list of processed data objects with citations and matched sources.
+    list: A list of processed data objects with citations.
     """
     result = []
 
     for item in data:
         response = item["response"]
         sources = item["source"]
+
+        # Extract citations from the sources
         citations = extract_citations(sources)
-        matched_sources = match_sources(response, sources, tokenizer, model)
+
+        # Match sources with the response using semantic similarity
+        matched_sources = match_sources(
+            response, sources, tokenizer, model, threshold
+        )
+
+        # Extract the matched citations
+        matched_citations = [
+            {"id": source["id"], "link": source.get("link", "")}
+            for source in matched_sources
+        ]
+
         result.append(
             {
                 "id": item["id"],
                 "response": response,
-                "sources": citations,
-                "matched_sources": matched_sources,
+                "citations": matched_citations,
             }
         )
+
     return result
 
 
