@@ -23,8 +23,8 @@ if __name__ == "__main__":
     # Load the last page from progress or start from 1
     last_page = load_progress(PROGRESS_FILE)
 
-    # Fetch and save data until no more pages are left
-    while True:
+    # Fetch and save data up to page 13
+    while last_page <= 13:
         try:
             data = fetch_page(API_URL, last_page)
             if not data:
