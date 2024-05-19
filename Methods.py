@@ -50,7 +50,7 @@ def fetch_page(api_url, page):
     page (int): The page number to fetch.
 
     Returns:
-    dict: The JSON response from the API.
+    list: The "data" array containing the response-sources pairs.
 
     Raises:
     TooManyRequestsError: If the API returns a 429 status code.
@@ -63,7 +63,9 @@ def fetch_page(api_url, page):
         )
     response.raise_for_status()  # Raise an exception for HTTP errors
     data = response.json()
-    return data
+    return data["data"][
+        "data"
+    ]  # Extract only the "data" array from the response
 
 
 def save_to_json(data, page, directory, processed=False):
@@ -71,7 +73,7 @@ def save_to_json(data, page, directory, processed=False):
     Saves the data to a JSON file.
 
     Parameters:
-    data (dict): The data to be saved.
+    data (list): The "data" array containing the response-sources pairs.
     page (int): The page number.
     directory (str): The directory to save the JSON files in.
     processed (bool): Flag to indicate if the data is processed or raw.
@@ -89,7 +91,7 @@ def save_to_json(data, page, directory, processed=False):
         json.dump(data, f, indent=4)
 
     # Print confirmation message
-    print(f"Page {page} as JSON saved as '{filename}' at '{filepath}'")
+    print(f"Page {page} data as JSON saved as '{filename}' at '{filepath}'")
 
 
 def extract_citations(sources):
@@ -167,7 +169,7 @@ def process_data(data, tokenizer, model):
     Processes the data to identify citations for each response.
 
     Parameters:
-    data (dict): The data object containing responses and sources.
+    data (list): The "data" array containing the response-sources pairs.
     tokenizer (transformers.AutoTokenizer): The tokenizer for the transformers model.
     model (transformers.AutoModelForSequenceClassification): The transformers model.
 
@@ -176,23 +178,14 @@ def process_data(data, tokenizer, model):
     """
     result = []
 
-    if isinstance(data, list):
-        items = data
-    else:
-        items = data.get("data", {}).get("data", [])
-
-    for item in items:
-        if not isinstance(item, dict):
-            # Skip unexpected item formats
-            print(f"Skipping unexpected item format: {item}")
-            continue
-        response = item.get("response", "")
-        sources = item.get("source", [])
+    for item in data:
+        response = item["response"]
+        sources = item["source"]
         citations = extract_citations(sources)
         matched_sources = match_sources(response, sources, tokenizer, model)
         result.append(
             {
-                "id": item.get("id"),
+                "id": item["id"],
                 "response": response,
                 "sources": citations,
                 "matched_sources": matched_sources,
