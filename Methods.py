@@ -63,6 +63,12 @@ def fetch_page(api_url, page):
         )
     response.raise_for_status()  # Raise an exception for HTTP errors
     data = response.json()
+
+    # Remove "created_at" and "updated_at" fields from each item in the "data" array
+    for item in data["data"]["data"]:
+        item.pop("created_at", None)
+        item.pop("updated_at", None)
+
     return data["data"][
         "data"
     ]  # Extract only the "data" array from the response
