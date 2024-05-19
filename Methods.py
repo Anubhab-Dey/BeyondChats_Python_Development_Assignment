@@ -192,6 +192,7 @@ def process_data(data, tokenizer, model):
         matched_sources = match_sources(response, sources, tokenizer, model)
         result.append(
             {
+                "id": item.get("id"),
                 "response": response,
                 "sources": citations,
                 "matched_sources": matched_sources,
@@ -276,7 +277,8 @@ def display_citations(output_dir):
 
             print(f"\nDisplaying citations for {filename}:")
             for item in data:
-                print(f"\nResponse: {item['response']}")
+                print(f"\nID: {item['id']}")
+                print(f"Response: {item['response']}")
                 print("Citations:")
                 for source in item["sources"]:
                     print(
